@@ -2,15 +2,15 @@
   "name": "Secreto",
   "short_name": "Secreto",
   "description": "O seu lugar de oração secreto.",
-  "start_url": "./index.html",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#120B07",
   "theme_color": "#120B07",
   "icons": [
     {
-      "src": "./icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]
