@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <!-- Configurações cruciais para parecer um App Nativo no celular -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#120B07">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Secreto</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel (Para compilar o JSX no navegador) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: #120B07; 
+            overscroll-behavior-y: none; 
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useCallback, useEffect } = React;
+
+        // --- Ícones (Substituindo a biblioteca externa para manter tudo num arquivo só) ---
+        const Icon = ({ path, size = 24, className = "", strokeWidth = 2, fill = "none" }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} dangerouslySetInnerHTML={{ __html: path }} />
+        );
+        
+        const Plus = (p) => <Icon {...p} path='<line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>' />;
+        const Flame = (p) => <Icon {...p} path='<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path>' />;
+        const BookOpen = (p) => <Icon {...p} path='<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>' />;
+        const Trash2 = (p) => <Icon {...p} path='<polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line>' />;
+        const Edit3 = (p) => <Icon {...p} path='<path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>' />;
+        const X = (p) => <Icon {...p} path='<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>' />;
+        const AlertCircle = (p) => <Icon {...p} path='<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>' />;
+        const CheckCircle2 = (p) => <Icon {...p} path='<circle cx="12" cy="12" r="10"></circle><path d="M8 11.857l2.5 2.5L15.857 9"></path>' />;
+        const KeyRound = (p) => <Icon {...p} path='<path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z"></path><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"></circle>' />;
+        const BookMarked = (p) => <Icon {...p} path='<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path><polyline points="10 2 10 10 13 7 16 10 16 2"></polyline>' />;
+        const ListOrdered = (p) => <Icon {...p} path='<line x1="10" y1="6" x2="21" y2="6"></line><line x1="10" y1="12" x2="21" y2="12"></line><line x1="10" y1="18" x2="21" y2="18"></line><path d="M4 6h1v4"></path><path d="M4 10h2"></path><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"></path>' />;
+        const ChevronUp = (p) => <Icon {...p} path='<polyline points="18 15 12 9 6 15"></polyline>' />;
+        const ChevronDown = (p) => <Icon {...p} path='<polyline points="6 9 12 15 18 9"></polyline>' />;
+
+        // --- Custom Hook para o Long Press (Pressionar e segurar) ---
+        function useLongPress(callback, ms = 500) {
+            const timerRef = useRef();
+
+            const start = useCallback((e) => {
+                timerRef.current = setTimeout(() => {
+                    callback(e);
+                    if (window.navigator && window.navigator.vibrate) {
+                        window.navigator.vibrate(50);
+                    }
+                }, ms);
+            }, [callback, ms]);
+
+            const stop = useCallback(() => {
+                if (timerRef.current) clearTimeout(timerRef.current);
+            }, []);
+
+            return {
+                onMouseDown: start,
+                onMouseUp: stop,
+                onMouseLeave: stop,
+                onTouchStart: start,
+                onTouchEnd: stop,
+                onTouchMove: stop,
+            };
+        }
+
+        // --- APP PRINCIPAL ---
+        function App() {
+            const [isLocked, setIsLocked] = useState(() => sessionStorage.getItem('secreto_unlocked') !== 'true');
+            const [passwordInput, setPasswordInput] = useState('');
+            const [passwordError, setPasswordError] = useState(false);
+
+            const [lists, setLists] = useState(() => {
+                const saved = localStorage.getItem('secreto_lists');
+                return saved ? JSON.parse(saved) : [
+                    { id: '1', title: 'Agradecimentos', emoji: '🙌', prayCount: 0, checked: false, notes: '' },
+                    { id: '2', title: 'Família', emoji: '🏠', prayCount: 0, checked: false, notes: '' }
+                ];
+            });
+
+            const [items, setItems] = useState(() => {
+                const saved = localStorage.getItem('secreto_items');
+                return saved ? JSON.parse(saved) : [];
+            });
+
+            const [optionsMenu, setOptionsMenu] = useState({ isOpen: false, type: null, data: null });
+            const [modal, setModal] = useState({ isOpen: false, type: null, mode: 'CREATE', data: null });
+            const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
+            const [customAlert, setCustomAlert] = useState({ isOpen: false, message: '', isSuccess: false });
+
+            useEffect(() => {
+                if (!isLocked) localStorage.setItem('secreto_lists', JSON.stringify(lists));
+            }, [lists, isLocked]);
+
+            useEffect(() => {
+                if (!isLocked) localStorage.setItem('secreto_items', JSON.stringify(items));
+            }, [items, isLocked]);
+
+            const handleUnlock = (e) => {
+                e.preventDefault();
+                if (passwordInput.trim().toLowerCase() === 'cristo') {
+                    setIsLocked(false);
+                    sessionStorage.setItem('secreto_unlocked', 'true');
+                    setPasswordError(false);
+                } else {
+                    setPasswordError(true);
+                    setPasswordInput('');
+                    if (window.navigator && window.navigator.vibrate) window.navigator.vibrate([100, 50, 100]);
+                }
+            };
+
+            const handleCheckList = (listId) => setLists(prev => prev.map(l => l.id === listId ? { ...l, checked: !l.checked } : l));
+
+            const initiateSavePrayers = () => {
+                if (!lists.some(l => l.checked)) {
+                    setCustomAlert({ isOpen: true, message: 'Selecione (🙏) ao menos uma lista antes de salvar.', isSuccess: false });
+                    return;
+                }
+                setConfirmSaveOpen(true);
+            };
+
+            const executeSavePrayers = () => {
+                let savedCount = 0;
+                const updatedLists = lists.map(l => {
+                    if (l.checked) { savedCount++; return { ...l, prayCount: l.prayCount + 1, checked: false }; }
+                    return l;
+                });
+                setLists(updatedLists);
+                setConfirmSaveOpen(false);
+                setCustomAlert({ isOpen: true, message: `A contagem de ${savedCount} ${savedCount === 1 ? 'lista foi atualizada' : 'listas foram atualizadas'}!`, isSuccess: true });
+            };
+
+            const openOptions = (type, data) => setOptionsMenu({ isOpen: true, type, data });
+            const closeOptions = () => setOptionsMenu({ isOpen: false, type: null, data: null });
+
+            const handleDelete = () => {
+                if (optionsMenu.type === 'LIST') {
+                    setLists(prev => prev.filter(l => l.id !== optionsMenu.data.id));
+                    setItems(prev => prev.filter(i => i.listId !== optionsMenu.data.id));
+                } else {
+                    setItems(prev => prev.filter(i => i.id !== optionsMenu.data.id));
+                }
+                closeOptions();
+            };
+
+            const openModal = (type, mode, data = null) => { closeOptions(); setModal({ isOpen: true, type, mode, data }); };
+            const closeModal = () => setModal({ isOpen: false, type: null, mode: 'CREATE', data: null });
+
+            const handleSaveEntity = (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const title = formData.get('title');
+                const emoji = formData.get('emoji') || (modal.type === 'LIST' ? '🕯️' : '🙏');
+                
+                if (modal.type === 'LIST') {
+                    if (modal.mode === 'CREATE') setLists(prev => [...prev, { id: Date.now().toString(), title, emoji, prayCount: 0, checked: false, notes: '' }]);
+                    else setLists(prev => prev.map(l => l.id === modal.data.id ? { ...l, title, emoji } : l));
+                } else if (modal.type === 'ITEM') {
+                    const body = formData.get('body') || '';
+                    if (modal.mode === 'CREATE') setItems(prev => [...prev, { id: Date.now().toString(), listId: modal.data, title, body, emoji }]);
+                    else setItems(prev => prev.map(i => i.id === modal.data.id ? { ...i, title, body, emoji } : i));
+                }
+                closeModal();
+            };
+
+            const handleSaveNotes = (e) => {
+                e.preventDefault();
+                const notes = new FormData(e.target).get('notes');
+                setLists(prev => prev.map(l => l.id === modal.data.id ? { ...l, notes } : l));
+                closeModal();
+            };
+
+            const handleSaveReorder = (reorderedItems) => {
+                setItems(prev => [...prev.filter(i => i.listId !== modal.data.id), ...reorderedItems]);
+                closeModal();
+            };
+
+            if (isLocked) {
+                return (
+                    <div className="min-h-screen bg-[#120B07] text-[#F3E1C5] font-serif relative overflow-hidden flex flex-col items-center justify-center select-none">
+                        <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-[#994711] rounded-full blur-[150px] opacity-20 pointer-events-none mix-blend-screen"></div>
+                        <div className="fixed inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.95)] pointer-events-none z-0"></div>
+                        <div className="relative z-10 flex flex-col items-center w-full max-w-xs px-6 animate-[fadeIn_0.7s_ease-out]">
+                            <div className="mb-8 relative"><Flame size={56} className="text-[#E87A2B] drop-shadow-[0_0_20px_rgba(232,122,43,0.6)] animate-pulse" strokeWidth={1} /></div>
+                            <h1 className="text-3xl font-medium tracking-widest text-[#FFDDB3] mb-3">SECRETO</h1>
+                            <p className="text-[#A87C51] text-sm italic mb-12 text-center opacity-80">"Fecha a tua porta..."</p>
+                            <form onSubmit={handleUnlock} className="w-full space-y-4">
+                                <div>
+                                    <input type="password" value={passwordInput} onChange={(e) => { setPasswordInput(e.target.value); setPasswordError(false); }} placeholder="Senha" className={`w-full bg-[#1A110A]/60 border ${passwordError ? 'border-red-500/50 text-red-200' : 'border-[#4A2C11]'} rounded-2xl p-4 text-center text-xl tracking-[0.2em] text-[#F3E1C5] focus:outline-none focus:border-[#E87A2B] backdrop-blur-sm transition-colors`} />
+                                    {passwordError && <p className="text-red-400/80 text-xs text-center mt-2 italic">A chave não serve.</p>}
+                                </div>
+                                <button type="submit" className="w-full bg-[#E87A2B] text-[#120B07] font-semibold text-lg rounded-2xl py-4 hover:bg-[#D66B1F] shadow-[0_0_20px_rgba(232,122,43,0.15)] active:scale-95 transition-transform">Entrar</button>
+                            </form>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-[#120B07] text-[#F3E1C5] font-serif relative overflow-hidden flex flex-col items-center select-none animate-[fadeIn_1s_ease-out]">
+                    <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-[#994711] rounded-full blur-[150px] opacity-20 pointer-events-none mix-blend-screen"></div>
+                    <div className="fixed inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.95)] pointer-events-none z-0"></div>
+
+                    <header className="w-full max-w-md pt-12 pb-4 px-6 relative z-10 text-center">
+                        <h1 className="text-3xl font-medium tracking-wide text-[#FFDDB3] flex items-center justify-center gap-3 drop-shadow-[0_0_15px_rgba(255,150,50,0.3)]"><Flame size={28} className="text-[#E87A2B]" strokeWidth={1.5} />Secreto</h1>
+                        <p className="text-[#A87C51] mt-2 text-sm italic">"Em teu quarto, feche a porta..."</p>
+                    </header>
+
+                    <div className="flex-1 w-full max-w-md relative z-10 flex flex-col justify-center pb-8">
+                        <div className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar w-full h-full items-center px-[7.5vw] gap-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                            {lists.map(list => (
+                                <ListCard key={list.id} list={list} items={items.filter(i => i.listId === list.id)} onCheck={() => handleCheckList(list.id)} onLongPress={() => openOptions('LIST', list)} onAddItem={() => openModal('ITEM', 'CREATE', list.id)} onItemLongPress={(item) => openOptions('ITEM', item)} onOpenNotes={() => openModal('NOTES', 'EDIT', list)} />
+                            ))}
+                            <div className="snap-center flex-shrink-0 w-[85vw] max-w-[340px] h-[75vh] max-h-[600px] rounded-3xl border border-[#4A2C11] bg-[#1A110A]/80 shadow-2xl backdrop-blur-sm p-6 flex flex-col items-center justify-center gap-8 relative overflow-hidden">
+                                <div className="absolute inset-0 bg-gradient-to-t from-[#2E1605]/50 to-transparent pointer-events-none"></div>
+                                <button onClick={initiateSavePrayers} className="relative group z-10 w-full flex flex-col items-center p-8 rounded-2xl border border-[#8C4E1D] bg-[#2E1605]/60 hover:bg-[#3D1D07]/80 transition-all active:scale-95 cursor-pointer">
+                                    <BookOpen size={48} className="text-[#E87A2B] mb-4" strokeWidth={1} />
+                                    <h3 className="text-xl text-[#FFDDB3] font-medium mb-2">Salvar Orações</h3>
+                                    <p className="text-[#A87C51] text-center text-sm">Guardar o tempo passado no secreto e registrar seus momentos.</p>
+                                </button>
+                                <div className="w-16 h-px bg-[#4A2C11] z-10"></div>
+                                <button onClick={() => openModal('LIST', 'CREATE')} className="relative z-10 flex items-center gap-2 text-[#E87A2B] hover:text-[#FFDDB3] transition-colors p-4 active:scale-95 cursor-pointer">
+                                    <Plus size={20} /><span className="text-sm tracking-widest uppercase">Nova Lista</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {confirmSaveOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                            <div className="w-full max-w-sm bg-[#1A110A] border border-[#E87A2B]/30 rounded-3xl shadow-2xl p-6 text-center">
+                                <BookOpen size={36} className="text-[#E87A2B] mx-auto mb-4" strokeWidth={1.5} />
+                                <h2 className="text-2xl text-[#FFDDB3] mb-2 font-medium">Guardar no Secreto?</h2>
+                                <p className="text-[#A87C51] text-sm mb-8 leading-relaxed">Isso vai adicionar +1 ao contador das listas marcadas como realizadas e resetar a seleção.</p>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setConfirmSaveOpen(false)} className="flex-1 py-3 rounded-xl border border-[#4A2C11] text-[#A87C51] hover:bg-[#2E1605]">Cancelar</button>
+                                    <button onClick={executeSavePrayers} className="flex-1 py-3 rounded-xl bg-[#E87A2B] text-[#120B07] font-semibold hover:bg-[#D66B1F]">Sim, guardar</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {customAlert.isOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                            <div className="w-full max-w-sm bg-[#1A110A] border border-[#4A2C11] rounded-3xl shadow-2xl p-6 text-center">
+                                {customAlert.isSuccess ? <CheckCircle2 size={36} className="text-[#E87A2B] mx-auto mb-4" strokeWidth={1.5} /> : <AlertCircle size={36} className="text-red-400 mx-auto mb-4" strokeWidth={1.5} />}
+                                <p className={`text-lg mb-6 ${customAlert.isSuccess ? 'text-[#FFDDB3]' : 'text-red-200'}`}>{customAlert.message}</p>
+                                <button onClick={() => setCustomAlert({ ...customAlert, isOpen: false })} className={`w-full py-3 rounded-xl font-medium ${customAlert.isSuccess ? 'bg-[#E87A2B] text-[#120B07]' : 'bg-red-950/40 text-red-200'}`}>Entendido</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {optionsMenu.isOpen && (
+                        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 backdrop-blur-sm p-4" onClick={closeOptions}>
+                            <div className="w-full max-w-sm bg-[#1A110A] border border-[#4A2C11] rounded-3xl overflow-hidden shadow-2xl transition-transform transform translate-y-0" onClick={e => e.stopPropagation()}>
+                                <div className="p-4 border-b border-[#4A2C11]/50 flex justify-center"><div className="w-12 h-1 bg-[#4A2C11] rounded-full"></div></div>
+                                <div className="p-2">
+                                    <button onClick={() => openModal(optionsMenu.type, 'EDIT', optionsMenu.data)} className="w-full flex items-center gap-4 p-4 text-[#F3E1C5] hover:bg-[#2E1605] rounded-xl"><Edit3 size={20} className="text-[#E87A2B]" /><span className="text-lg">Editar {optionsMenu.type === 'LIST' ? 'Lista' : 'Motivo'}</span></button>
+                                    {optionsMenu.type === 'LIST' && items.filter(i => i.listId === optionsMenu.data.id).length > 1 && (
+                                        <button onClick={() => openModal('REORDER', 'EDIT', optionsMenu.data)} className="w-full flex items-center gap-4 p-4 text-[#F3E1C5] hover:bg-[#2E1605] rounded-xl"><ListOrdered size={20} className="text-[#E87A2B]" /><span className="text-lg">Reordenar Motivos</span></button>
+                                    )}
+                                    <button onClick={handleDelete} className="w-full flex items-center gap-4 p-4 text-red-400 hover:bg-red-950/30 rounded-xl"><Trash2 size={20} /><span className="text-lg">Excluir</span></button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {modal.isOpen && (
+                        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                            <div className="w-full max-w-sm bg-[#1A110A] border border-[#4A2C11] rounded-3xl shadow-2xl p-6 relative flex flex-col max-h-[90vh]">
+                                <button type="button" onClick={closeModal} className="absolute top-4 right-4 text-[#A87C51]"><X size={24} /></button>
+                                
+                                {(modal.type === 'LIST' || modal.type === 'ITEM') && (
+                                    <>
+                                        <h2 className="text-2xl text-[#FFDDB3] mb-6">{modal.mode === 'CREATE' ? 'Criar' : 'Editar'} {modal.type === 'LIST' ? 'Lista' : 'Motivo'}</h2>
+                                        <form onSubmit={handleSaveEntity} className="space-y-4">
+                                            <div className="flex gap-3">
+                                                <div className="w-16"><label className="block text-xs text-[#A87C51] mb-1 uppercase">Ícone</label><input name="emoji" defaultValue={modal.mode === 'EDIT' ? modal.data?.emoji : ''} placeholder={modal.type === 'LIST' ? "🕯️" : "🙏"} className="w-full bg-[#0D0805] border border-[#4A2C11] rounded-xl p-3 text-center text-xl text-[#F3E1C5]" maxLength="2" /></div>
+                                                <div className="flex-1"><label className="block text-xs text-[#A87C51] mb-1 uppercase">Título</label><input name="title" defaultValue={modal.mode === 'EDIT' ? modal.data?.title : ''} placeholder="Ex: Família" required autoFocus className="w-full bg-[#0D0805] border border-[#4A2C11] rounded-xl p-3 text-[#F3E1C5]" /></div>
+                                            </div>
+                                            {modal.type === 'ITEM' && (<div><label className="block text-xs text-[#A87C51] mb-1 uppercase">Detalhes (Opcional)</label><textarea name="body" defaultValue={modal.mode === 'EDIT' ? modal.data?.body : ''} placeholder="Descreva o motivo de oração..." rows="4" className="w-full bg-[#0D0805] border border-[#4A2C11] rounded-xl p-3 text-[#F3E1C5] resize-none"></textarea></div>)}
+                                            <button type="submit" className="w-full bg-[#E87A2B] text-[#120B07] font-bold text-lg rounded-xl py-4 mt-4 hover:bg-[#D66B1F]">Salvar</button>
+                                        </form>
+                                    </>
+                                )}
+                                {modal.type === 'NOTES' && (
+                                    <>
+                                        <h2 className="text-2xl text-[#FFDDB3] mb-2 pr-8 truncate">Notas de Fé</h2>
+                                        <p className="text-[#A87C51] text-sm italic mb-6">Promessas para "{modal.data.title}"</p>
+                                        <form onSubmit={handleSaveNotes} className="space-y-4 flex-1 flex flex-col min-h-0">
+                                            <textarea name="notes" defaultValue={modal.data?.notes || ''} placeholder="Escreva promessas, versículos e anotações..." className="w-full flex-1 bg-[#0D0805] border border-[#4A2C11] rounded-xl p-4 text-[#F3E1C5] resize-none leading-relaxed"></textarea>
+                                            <button type="submit" className="w-full bg-[#E87A2B] text-[#120B07] font-bold text-lg rounded-xl py-4 flex-shrink-0 hover:bg-[#D66B1F]">Guardar Notas</button>
+                                        </form>
+                                    </>
+                                )}
+                                {modal.type === 'REORDER' && <ReorderView list={modal.data} initialItems={items.filter(i => i.listId === modal.data.id)} onSave={handleSaveReorder} />}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // --- Componentes Secundários ---
+        function ReorderView({ list, initialItems, onSave }) {
+            const [tempItems, setTempItems] = useState(initialItems);
+            const moveItem = (index, direction) => {
+                if ((direction === -1 && index === 0) || (direction === 1 && index === tempItems.length - 1)) return;
+                const newItems = [...tempItems];
+                [newItems[index], newItems[index + direction]] = [newItems[index + direction], newItems[index]];
+                setTempItems(newItems);
+            };
+            return (
+                <>
+                    <h2 className="text-2xl text-[#FFDDB3] mb-2 pr-8">Organizar</h2><p className="text-[#A87C51] text-sm italic mb-6">Ordem para "{list.title}"</p>
+                    <div className="flex-1 overflow-y-auto hide-scrollbar space-y-3 mb-4 min-h-[200px]">
+                        {tempItems.map((item, index) => (
+                            <div key={item.id} className="flex items-center gap-3 bg-[#0D0805] border border-[#2E1605] p-3 rounded-xl">
+                                <div className="flex flex-col gap-1 items-center bg-[#1A110A] p-1 rounded-lg border border-[#2E1605]">
+                                    <button type="button" onClick={() => moveItem(index, -1)} disabled={index === 0} className="text-[#A87C51] disabled:opacity-20 p-1"><ChevronUp size={18} strokeWidth={2.5} /></button>
+                                    <div className="w-4 h-px bg-[#2E1605]"></div>
+                                    <button type="button" onClick={() => moveItem(index, 1)} disabled={index === tempItems.length - 1} className="text-[#A87C51] disabled:opacity-20 p-1"><ChevronDown size={18} strokeWidth={2.5} /></button>
+                                </div>
+                                <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-lg">{item.emoji}</div>
+                                <div className="flex-1 min-w-0"><p className="text-[#F3E1C5] font-medium truncate">{item.title}</p></div>
+                            </div>
+                        ))}
+                    </div>
+                    <button onClick={() => onSave(tempItems)} className="w-full bg-[#E87A2B] text-[#120B07] font-bold text-lg rounded-xl py-4 flex-shrink-0 hover:bg-[#D66B1F]">Salvar Ordem</button>
+                </>
+            );
+        }
+
+        function ListCard({ list, items, onCheck, onLongPress, onAddItem, onItemLongPress, onOpenNotes }) {
+            const longPressProps = useLongPress(onLongPress, 600);
+            return (
+                <div className="snap-center flex-shrink-0 w-[85vw] max-w-[340px] h-[75vh] max-h-[600px] rounded-3xl border border-[#4A2C11] bg-[#1A110A]/80 shadow-2xl backdrop-blur-sm flex flex-col relative overflow-hidden transition-all duration-300">
+                    <div className={`absolute inset-0 bg-gradient-to-t from-[#E87A2B]/20 to-transparent pointer-events-none transition-opacity duration-700 ${list.checked ? 'opacity-100' : 'opacity-0'}`}></div>
+                    <div {...longPressProps} className="p-6 border-b border-[#4A2C11]/50 flex items-center justify-between cursor-pointer active:bg-[#2E1605]/50 gap-2">
+                        <div className="flex items-center gap-3 flex-1 min-w-0"><span className="text-3xl drop-shadow-md flex-shrink-0">{list.emoji}</span><h2 className="text-2xl text-[#FFDDB3] tracking-wide truncate">{list.title}</h2></div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            <button onClick={(e) => { e.stopPropagation(); onOpenNotes(); }} className="p-2 text-[#E87A2B] bg-[#2E1605]/40 border border-[#4A2C11] rounded-xl shadow-inner active:scale-95"><BookMarked size={18} strokeWidth={2} /></button>
+                            <div className="flex flex-col items-center justify-center bg-[#0D0805] border border-[#4A2C11] rounded-xl w-10 h-10 shadow-inner"><span className="text-xs text-[#E87A2B] font-bold">{list.prayCount}</span></div>
+                        </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto hide-scrollbar p-4 flex flex-col gap-3 z-10">
+                        {items.length === 0 ? (
+                            <div className="flex-1 flex flex-col items-center justify-center text-[#A87C51] opacity-60 italic text-center px-4"><Flame size={32} className="mb-2 opacity-50" strokeWidth={1.5} /><p>Nenhum motivo de oração nesta lista ainda.</p></div>
+                        ) : (items.map(item => <ItemCard key={item.id} item={item} onLongPress={() => onItemLongPress(item)} />))}
+                        <button onClick={onAddItem} className="w-full py-4 mt-2 flex-shrink-0 flex items-center justify-center gap-2 text-[#A87C51] bg-[#2E1605]/20 rounded-xl border border-dashed border-[#4A2C11]/50 active:bg-[#2E1605]/40"><Plus size={18} /><span className="text-sm">Adicionar motivo</span></button>
+                    </div>
+                    <div className="p-4 bg-gradient-to-t from-[#0D0805] to-transparent z-10">
+                        <button onClick={onCheck} className={`w-full py-4 rounded-2xl flex items-center justify-center gap-3 transition-all duration-300 shadow-lg border active:scale-95 ${list.checked ? 'bg-[#E87A2B] text-[#120B07] border-[#FFDDB3]' : 'bg-[#2E1605] text-[#A87C51] border-[#4A2C11] hover:bg-[#3D1D07]'}`}>
+                            <span className="text-2xl">🙏</span><span className="text-lg font-medium">{list.checked ? 'Oração Realizada' : 'Orar por isso'}</span>
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        function ItemCard({ item, onLongPress }) {
+            const longPressProps = useLongPress(onLongPress, 500);
+            return (
+                <div {...longPressProps} className="bg-[#0D0805]/80 border border-[#2E1605] rounded-2xl p-4 flex gap-4 cursor-pointer active:scale-[0.98] transition-transform">
+                    <div className="flex-shrink-0 w-10 h-10 bg-[#1A110A] rounded-xl flex items-center justify-center text-xl border border-[#2E1605]">{item.emoji}</div>
+                    <div className="flex-1 min-w-0">
+                        <h4 className="text-[#FFDDB3] font-medium truncate">{item.title}</h4>
+                        {item.body && <p className="text-[#A87C51] text-sm mt-1 leading-relaxed line-clamp-3">{item.body}</p>}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
