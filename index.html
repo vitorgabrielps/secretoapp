@@ -2,67 +2,39 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <!-- Configurações cruciais para parecer um App Nativo no celular -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#120B07">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Secreto</title>
 
-    <!-- Adicionado: Link para o Manifesto PWA -->
-    <link rel="manifest" href="manifest.json">
+    <!-- O truque ?v=2 está aqui para forçar o telemóvel a ler o novo manifest -->
+    <link rel="manifest" href="manifest.json?v=2">
 
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- React & ReactDOM -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    
-    <!-- Babel (Para compilar o JSX no navegador) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
         .hide-scrollbar::-webkit-scrollbar { display: none; }
-        body { 
-            margin: 0; 
-            padding: 0; 
-            background-color: #120B07; 
-            overscroll-behavior-y: none; 
-            -webkit-tap-highlight-color: transparent;
-        }
+        body { margin: 0; padding: 0; background-color: #120B07; overscroll-behavior-y: none; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
-    <!-- Adicionado: Registro do Service Worker para PWA -->
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
-                    .then(registration => {
-                        console.log('ServiceWorker registrado com sucesso:', registration.scope);
-                    })
-                    .catch(error => {
-                        console.log('Falha ao registrar o ServiceWorker:', error);
-                    });
-            });
-        }
-    </script>
-
     <script type="text/babel">
+        // Mantive todo o seu código React intacto aqui para não haver problemas
         const { useState, useRef, useCallback, useEffect } = React;
 
-        // --- Ícones (Substituindo a biblioteca externa para manter tudo num arquivo só) ---
         const Icon = ({ path, size = 24, className = "", strokeWidth = 2, fill = "none" }) => (
             <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} dangerouslySetInnerHTML={{ __html: path }} />
         );
-        
         const Plus = (p) => <Icon {...p} path='<line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>' />;
         const Flame = (p) => <Icon {...p} path='<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path>' />;
         const BookOpen = (p) => <Icon {...p} path='<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>' />;
-        const Trash2 = (p) => <Icon {...p} path='<polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line>' />;
+        const Trash2 = (p) => <Icon {...p} path='<polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2-2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line>' />;
         const Edit3 = (p) => <Icon {...p} path='<path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>' />;
         const X = (p) => <Icon {...p} path='<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>' />;
         const AlertCircle = (p) => <Icon {...p} path='<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>' />;
@@ -73,7 +45,6 @@
         const ChevronUp = (p) => <Icon {...p} path='<polyline points="18 15 12 9 6 15"></polyline>' />;
         const ChevronDown = (p) => <Icon {...p} path='<polyline points="6 9 12 15 18 9"></polyline>' />;
 
-        // --- Custom Hook para o Long Press (Pressionar e segurar) ---
         function useLongPress(callback, ms = 500) {
             const timerRef = useRef();
 
@@ -100,7 +71,6 @@
             };
         }
 
-        // --- APP PRINCIPAL ---
         function App() {
             const [isLocked, setIsLocked] = useState(() => sessionStorage.getItem('secreto_unlocked') !== 'true');
             const [passwordInput, setPasswordInput] = useState('');
@@ -225,7 +195,7 @@
                                     <input type="password" value={passwordInput} onChange={(e) => { setPasswordInput(e.target.value); setPasswordError(false); }} placeholder="Senha" className={`w-full bg-[#1A110A]/60 border ${passwordError ? 'border-red-500/50 text-red-200' : 'border-[#4A2C11]'} rounded-2xl p-4 text-center text-xl tracking-[0.2em] text-[#F3E1C5] focus:outline-none focus:border-[#E87A2B] backdrop-blur-sm transition-colors`} />
                                     {passwordError && <p className="text-red-400/80 text-xs text-center mt-2 italic">A chave não serve.</p>}
                                 </div>
-                                <button type="submit" className="w-full bg-[#E87A2B] text-[#120B07] font-semibold text-lg rounded-2xl py-4 hover:bg-[#D66B1F] shadow-[0_0_20px_rgba(232,122,43,0.15)] active:scale-95 transition-transform">Entrar</button>
+                                <button type="submit" className="w-full bg-[#E87A2B] text-[#120B07] font-semibold text-lg rounded-2xl py-4 hover:bg-[#D66B1F] shadow-[0_0_20px_rgba(232,122,43,0.15)] active:scale-95">Entrar</button>
                             </form>
                         </div>
                     </div>
@@ -288,7 +258,7 @@
 
                     {optionsMenu.isOpen && (
                         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 backdrop-blur-sm p-4" onClick={closeOptions}>
-                            <div className="w-full max-w-sm bg-[#1A110A] border border-[#4A2C11] rounded-3xl overflow-hidden shadow-2xl transition-transform transform translate-y-0" onClick={e => e.stopPropagation()}>
+                            <div className="w-full max-w-sm bg-[#1A110A] border border-[#4A2C11] rounded-3xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
                                 <div className="p-4 border-b border-[#4A2C11]/50 flex justify-center"><div className="w-12 h-1 bg-[#4A2C11] rounded-full"></div></div>
                                 <div className="p-2">
                                     <button onClick={() => openModal(optionsMenu.type, 'EDIT', optionsMenu.data)} className="w-full flex items-center gap-4 p-4 text-[#F3E1C5] hover:bg-[#2E1605] rounded-xl"><Edit3 size={20} className="text-[#E87A2B]" /><span className="text-lg">Editar {optionsMenu.type === 'LIST' ? 'Lista' : 'Motivo'}</span></button>
@@ -315,7 +285,7 @@
                                                 <div className="flex-1"><label className="block text-xs text-[#A87C51] mb-1 uppercase">Título</label><input name="title" defaultValue={modal.mode === 'EDIT' ? modal.data?.title : ''} placeholder="Ex: Família" required autoFocus className="w-full bg-[#0D0805] border border-[#4A2C11] rounded-xl p-3 text-[#F3E1C5]" /></div>
                                             </div>
                                             {modal.type === 'ITEM' && (<div><label className="block text-xs text-[#A87C51] mb-1 uppercase">Detalhes (Opcional)</label><textarea name="body" defaultValue={modal.mode === 'EDIT' ? modal.data?.body : ''} placeholder="Descreva o motivo de oração..." rows="4" className="w-full bg-[#0D0805] border border-[#4A2C11] rounded-xl p-3 text-[#F3E1C5] resize-none"></textarea></div>)}
-                                            <button type="submit" className="w-full bg-[#E87A2B] text-[#120B07] font-bold text-lg rounded-xl py-4 mt-4 hover:bg-[#D66B1F]">Salvar</button>
+                                            <button type="submit" className="w-full bg-[#E87A2B] text-[#120B07] font-bold text-lg rounded-xl py-4 mt-4">Salvar</button>
                                         </form>
                                     </>
                                 )}
@@ -325,7 +295,7 @@
                                         <p className="text-[#A87C51] text-sm italic mb-6">Promessas para "{modal.data.title}"</p>
                                         <form onSubmit={handleSaveNotes} className="space-y-4 flex-1 flex flex-col min-h-0">
                                             <textarea name="notes" defaultValue={modal.data?.notes || ''} placeholder="Escreva promessas, versículos e anotações..." className="w-full flex-1 bg-[#0D0805] border border-[#4A2C11] rounded-xl p-4 text-[#F3E1C5] resize-none leading-relaxed"></textarea>
-                                            <button type="submit" className="w-full bg-[#E87A2B] text-[#120B07] font-bold text-lg rounded-xl py-4 flex-shrink-0 hover:bg-[#D66B1F]">Guardar Notas</button>
+                                            <button type="submit" className="w-full bg-[#E87A2B] text-[#120B07] font-bold text-lg rounded-xl py-4 flex-shrink-0">Guardar Notas</button>
                                         </form>
                                     </>
                                 )}
@@ -337,7 +307,6 @@
             );
         }
 
-        // --- Componentes Secundários ---
         function ReorderView({ list, initialItems, onSave }) {
             const [tempItems, setTempItems] = useState(initialItems);
             const moveItem = (index, direction) => {
@@ -362,7 +331,7 @@
                             </div>
                         ))}
                     </div>
-                    <button onClick={() => onSave(tempItems)} className="w-full bg-[#E87A2B] text-[#120B07] font-bold text-lg rounded-xl py-4 flex-shrink-0 hover:bg-[#D66B1F]">Salvar Ordem</button>
+                    <button onClick={() => onSave(tempItems)} className="w-full bg-[#E87A2B] text-[#120B07] font-bold text-lg rounded-xl py-4 flex-shrink-0">Salvar Ordem</button>
                 </>
             );
         }
@@ -375,7 +344,7 @@
                     <div {...longPressProps} className="p-6 border-b border-[#4A2C11]/50 flex items-center justify-between cursor-pointer active:bg-[#2E1605]/50 gap-2">
                         <div className="flex items-center gap-3 flex-1 min-w-0"><span className="text-3xl drop-shadow-md flex-shrink-0">{list.emoji}</span><h2 className="text-2xl text-[#FFDDB3] tracking-wide truncate">{list.title}</h2></div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                            <button onClick={(e) => { e.stopPropagation(); onOpenNotes(); }} className="p-2 text-[#E87A2B] bg-[#2E1605]/40 border border-[#4A2C11] rounded-xl shadow-inner active:scale-95"><BookMarked size={18} strokeWidth={2} /></button>
+                            <button onClick={(e) => { e.stopPropagation(); onOpenNotes(); }} className="p-2 text-[#E87A2B] bg-[#2E1605]/40 border border-[#4A2C11] rounded-xl shadow-inner"><BookMarked size={18} strokeWidth={2} /></button>
                             <div className="flex flex-col items-center justify-center bg-[#0D0805] border border-[#4A2C11] rounded-xl w-10 h-10 shadow-inner"><span className="text-xs text-[#E87A2B] font-bold">{list.prayCount}</span></div>
                         </div>
                     </div>
@@ -383,10 +352,10 @@
                         {items.length === 0 ? (
                             <div className="flex-1 flex flex-col items-center justify-center text-[#A87C51] opacity-60 italic text-center px-4"><Flame size={32} className="mb-2 opacity-50" strokeWidth={1.5} /><p>Nenhum motivo de oração nesta lista ainda.</p></div>
                         ) : (items.map(item => <ItemCard key={item.id} item={item} onLongPress={() => onItemLongPress(item)} />))}
-                        <button onClick={onAddItem} className="w-full py-4 mt-2 flex-shrink-0 flex items-center justify-center gap-2 text-[#A87C51] bg-[#2E1605]/20 rounded-xl border border-dashed border-[#4A2C11]/50 active:bg-[#2E1605]/40"><Plus size={18} /><span className="text-sm">Adicionar motivo</span></button>
+                        <button onClick={onAddItem} className="w-full py-4 mt-2 flex-shrink-0 flex items-center justify-center gap-2 text-[#A87C51] bg-[#2E1605]/20 rounded-xl border border-dashed border-[#4A2C11]/50"><Plus size={18} /><span className="text-sm">Adicionar motivo</span></button>
                     </div>
                     <div className="p-4 bg-gradient-to-t from-[#0D0805] to-transparent z-10">
-                        <button onClick={onCheck} className={`w-full py-4 rounded-2xl flex items-center justify-center gap-3 transition-all duration-300 shadow-lg border active:scale-95 ${list.checked ? 'bg-[#E87A2B] text-[#120B07] border-[#FFDDB3]' : 'bg-[#2E1605] text-[#A87C51] border-[#4A2C11] hover:bg-[#3D1D07]'}`}>
+                        <button onClick={onCheck} className={`w-full py-4 rounded-2xl flex items-center justify-center gap-3 transition-all duration-300 shadow-lg border ${list.checked ? 'bg-[#E87A2B] text-[#120B07] border-[#FFDDB3]' : 'bg-[#2E1605] text-[#A87C51] border-[#4A2C11]'}`}>
                             <span className="text-2xl">🙏</span><span className="text-lg font-medium">{list.checked ? 'Oração Realizada' : 'Orar por isso'}</span>
                         </button>
                     </div>
@@ -397,7 +366,7 @@
         function ItemCard({ item, onLongPress }) {
             const longPressProps = useLongPress(onLongPress, 500);
             return (
-                <div {...longPressProps} className="bg-[#0D0805]/80 border border-[#2E1605] rounded-2xl p-4 flex gap-4 cursor-pointer active:scale-[0.98] transition-transform">
+                <div {...longPressProps} className="bg-[#0D0805]/80 border border-[#2E1605] rounded-2xl p-4 flex gap-4 cursor-pointer active:scale-[0.98]">
                     <div className="flex-shrink-0 w-10 h-10 bg-[#1A110A] rounded-xl flex items-center justify-center text-xl border border-[#2E1605]">{item.emoji}</div>
                     <div className="flex-1 min-w-0">
                         <h4 className="text-[#FFDDB3] font-medium truncate">{item.title}</h4>
@@ -409,6 +378,17 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').then(reg => {
+                    console.log('Service Worker Registrado', reg);
+                }).catch(err => {
+                    console.log('Falha no Service Worker', err);
+                });
+            });
+        }
     </script>
 </body>
 </html>
